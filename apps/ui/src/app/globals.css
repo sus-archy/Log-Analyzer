@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Log severity colors */
+.severity-trace { @apply text-gray-400; }
+.severity-debug { @apply text-gray-500; }
+.severity-info { @apply text-blue-500; }
+.severity-warn { @apply text-yellow-600; }
+.severity-error { @apply text-red-500; }
+.severity-fatal { @apply text-red-700 font-bold; }
+
+/* Template highlight */
+.template-param {
+  @apply bg-yellow-200 px-1 rounded;
+}

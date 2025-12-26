@@ -1,0 +1,190 @@
+{
+  "version": "1.0",
+  "description": "Cross-domain few-shot learning examples for log analysis. Examples from one domain help the AI understand patterns in other domains.",
+  
+  "domains": {
+    "web_server": {
+      "description": "Web server logs (Apache, Nginx, IIS)",
+      "keywords": ["apache", "nginx", "http", "request", "response", "status", "url", "GET", "POST"]
+    },
+    "authentication": {
+      "description": "Authentication and access logs",
+      "keywords": ["login", "auth", "password", "failed", "success", "user", "session", "credential", "ssh", "kerberos"]
+    },
+    "system": {
+      "description": "Operating system logs (Linux, Windows, Mac)",
+      "keywords": ["kernel", "systemd", "service", "daemon", "process", "memory", "cpu", "disk", "cron"]
+    },
+    "network": {
+      "description": "Network and connectivity logs",
+      "keywords": ["connection", "timeout", "refused", "socket", "port", "tcp", "udp", "network", "firewall"]
+    },
+    "database": {
+      "description": "Database logs (MySQL, PostgreSQL, MongoDB)",
+      "keywords": ["query", "database", "sql", "transaction", "deadlock", "replication", "index"]
+    },
+    "application": {
+      "description": "Application-level logs",
+      "keywords": ["exception", "error", "warning", "stack", "trace", "null", "failed", "success"]
+    },
+    "security": {
+      "description": "Security and threat logs",
+      "keywords": ["attack", "malicious", "intrusion", "blocked", "violation", "unauthorized", "exploit"]
+    },
+    "distributed": {
+      "description": "Distributed systems (Hadoop, Spark, Kubernetes)",
+      "keywords": ["hadoop", "spark", "kubernetes", "container", "pod", "node", "cluster", "replica"]
+    }
+  },
+
+  "cross_domain_examples": [
+    {
+      "id": "auth_failure_analysis",
+      "source_domain": "authentication",
+      "applicable_domains": ["web_server", "system", "security", "network"],
+      "question": "Why are there so many authentication failures?",
+      "context": "Found 7,166 authentication failures across multiple services",
+      "answer": "**Summary**: High authentication failure rate indicates potential security issues.\n\n**Analysis**:\n1. **Pattern Recognition**: Repeated failures from same IPs suggest brute-force attempts\n2. **Cross-Domain Impact**: Authentication failures in SSH often correlate with web login attempts\n3. **Root Causes**:\n   - Invalid credentials (user error)\n   - Expired passwords/certificates\n   - Brute-force attacks from malicious actors\n   - Misconfigured services\n\n**Evidence**: [template:auth_fail_01] Shows 5 repeated failures from IP 106.5.5.195\n\n**Recommendations**:\n1. Implement rate limiting on login endpoints\n2. Enable account lockout after N failures\n3. Review IPs with high failure counts for blocking\n4. Check if legitimate users are affected",
+      "transferable_patterns": [
+        "Repeated failures from same source indicate automated attacks",
+        "Time-based patterns reveal attack windows",
+        "Geographic clustering may indicate botnets"
+      ]
+    },
+    {
+      "id": "connection_timeout_analysis",
+      "source_domain": "network",
+      "applicable_domains": ["web_server", "database", "distributed", "application"],
+      "question": "What's causing the connection timeouts?",
+      "context": "Multiple connection timeout errors detected",
+      "answer": "**Summary**: Connection timeouts typically indicate network or resource issues.\n\n**Analysis**:\n1. **Network Layer**: Firewalls, routing issues, or network congestion\n2. **Application Layer**: Service overload or slow response times\n3. **Resource Layer**: Database connections exhausted, memory pressure\n\n**Cross-Domain Patterns**:\n- Web servers timing out → Check backend database connections\n- Database timeouts → Check disk I/O and query performance\n- Distributed systems → Check network partition or node failures\n\n**Recommendations**:\n1. Check network connectivity between services\n2. Review connection pool settings\n3. Monitor server resource utilization\n4. Implement circuit breakers for resilience",
+      "transferable_patterns": [
+        "Timeouts often cascade through system layers",
+        "Connection pool exhaustion affects multiple services",
+        "Network issues manifest differently per application"
+      ]
+    },
+    {
+      "id": "error_spike_analysis",
+      "source_domain": "application",
+      "applicable_domains": ["web_server", "database", "system", "distributed"],
+      "question": "Why did errors suddenly spike?",
+      "context": "Error rate increased from 0.1% to 15% in the last hour",
+      "answer": "**Summary**: Sudden error spikes usually indicate a triggering event.\n\n**Analysis Approach**:\n1. **Timeline Correlation**: What changed at the spike start time?\n   - Deployment/release\n   - Configuration change\n   - External dependency failure\n   - Traffic spike\n\n2. **Error Pattern Analysis**:\n   - Single error type → Specific bug or misconfiguration\n   - Multiple error types → Infrastructure issue\n   - Cascading errors → Dependency failure\n\n**Cross-Domain Investigation**:\n- Check deployment logs for recent changes\n- Review infrastructure metrics (CPU, memory, disk)\n- Examine dependent services for correlated issues\n\n**Recommendations**:\n1. Identify the exact timestamp of first error\n2. Check change management for that timeframe\n3. Review affected services and their dependencies\n4. If deployment-related, consider rollback",
+      "transferable_patterns": [
+        "Error spikes correlate with change events",
+        "Cascading failures start from single point",
+        "Time-based correlation reveals root cause"
+      ]
+    },
+    {
+      "id": "resource_exhaustion",
+      "source_domain": "system",
+      "applicable_domains": ["database", "web_server", "application", "distributed"],
+      "question": "What's causing out of memory errors?",
+      "context": "OOM killer triggered multiple times",
+      "answer": "**Summary**: Memory exhaustion indicates resource management issues.\n\n**Root Cause Analysis**:\n1. **Memory Leaks**: Application not releasing memory\n2. **Traffic Spike**: More requests than capacity\n3. **Inefficient Queries**: Large data sets loaded into memory\n4. **Misconfiguration**: Memory limits too low\n\n**Cross-Domain Patterns**:\n- Java apps: Check heap settings and GC logs\n- Databases: Review query execution plans\n- Containers: Check resource limits and requests\n- Web servers: Check worker process counts\n\n**Evidence Pattern**: [template:oom_kill] Shows process X killed by OOM\n\n**Recommendations**:\n1. Profile memory usage over time\n2. Review recent code changes for memory patterns\n3. Check if specific requests trigger high memory\n4. Increase memory limits or optimize code",
+      "transferable_patterns": [
+        "OOM often precedes cascade failures",
+        "Memory patterns reveal application behavior",
+        "Time-to-OOM indicates leak severity"
+      ]
+    },
+    {
+      "id": "security_intrusion",
+      "source_domain": "security",
+      "applicable_domains": ["authentication", "web_server", "network", "system"],
+      "question": "Are we under attack?",
+      "context": "Unusual access patterns detected",
+      "answer": "**Summary**: Analyzing for potential security threats.\n\n**Threat Indicators**:\n1. **Volume-based**: Unusual request rates from single sources\n2. **Pattern-based**: Known attack signatures (SQL injection, XSS)\n3. **Behavior-based**: Access to sensitive paths, enumeration attempts\n4. **Geographic**: Requests from unusual locations\n\n**Cross-Domain Correlation**:\n- Auth failures + Web errors → Credential stuffing\n- Network scans + Auth attempts → Targeted attack\n- System errors + Network issues → DDoS or exploitation\n\n**Evidence Analysis**:\n- High failure rate from IP ranges\n- Access to admin paths without prior auth\n- Request patterns matching attack tools\n\n**Recommendations**:\n1. Block suspicious IP ranges immediately\n2. Enable WAF rules for detected patterns\n3. Review affected accounts for compromise\n4. Preserve logs for forensic analysis",
+      "transferable_patterns": [
+        "Attacks leave traces across multiple log types",
+        "Geographic + temporal analysis reveals campaigns",
+        "Failed attempts indicate reconnaissance phase"
+      ]
+    },
+    {
+      "id": "distributed_failure",
+      "source_domain": "distributed",
+      "applicable_domains": ["database", "application", "network", "system"],
+      "question": "Why are jobs failing in the cluster?",
+      "context": "Multiple Hadoop/Spark jobs failing",
+      "answer": "**Summary**: Distributed job failures require multi-node analysis.\n\n**Common Causes**:\n1. **Node Failures**: Hardware or network issues on worker nodes\n2. **Resource Contention**: Insufficient memory/CPU for tasks\n3. **Data Issues**: Corrupt files, skewed partitions\n4. **Configuration**: Executor settings, timeout values\n\n**Cross-Domain Analysis**:\n- Check system logs on failed nodes\n- Review network connectivity between nodes\n- Analyze data node disk space and health\n- Monitor YARN/Kubernetes resource allocation\n\n**Pattern Recognition**:\n- Same task failing repeatedly → Data issue\n- Random task failures → Node/network issue\n- All tasks failing → Master/coordinator issue\n\n**Recommendations**:\n1. Identify specific nodes with failures\n2. Check node health and connectivity\n3. Review resource allocation settings\n4. Examine input data for corruption",
+      "transferable_patterns": [
+        "Distributed failures often localized to nodes",
+        "Network partitions cause partial failures",
+        "Resource starvation cascades through jobs"
+      ]
+    },
+    {
+      "id": "performance_degradation",
+      "source_domain": "web_server",
+      "applicable_domains": ["database", "application", "network", "system"],
+      "question": "Why is the system slow?",
+      "context": "Response times increased significantly",
+      "answer": "**Summary**: Performance degradation requires systematic analysis.\n\n**Investigation Layers**:\n1. **Frontend**: Browser rendering, CDN issues\n2. **Network**: Latency, packet loss, DNS\n3. **Application**: Code efficiency, blocking calls\n4. **Database**: Query performance, connection pools\n5. **Infrastructure**: CPU, memory, disk I/O\n\n**Cross-Domain Approach**:\n- Measure latency at each layer\n- Identify bottleneck through elimination\n- Correlate with resource metrics\n\n**Common Patterns**:\n- Slow queries → Database indexes or locks\n- High CPU → Inefficient code or insufficient capacity\n- Network latency → Routing or congestion issues\n\n**Recommendations**:\n1. Add timing instrumentation\n2. Profile database queries\n3. Check resource utilization\n4. Review recent changes",
+      "transferable_patterns": [
+        "Slowness propagates through service chain",
+        "Database is often the bottleneck",
+        "Resource metrics correlate with response times"
+      ]
+    },
+    {
+      "id": "log_pattern_anomaly",
+      "source_domain": "application",
+      "applicable_domains": ["web_server", "system", "database", "distributed"],
+      "question": "What unusual patterns should I look for?",
+      "context": "General log analysis request",
+      "answer": "**Summary**: Anomaly detection across log domains.\n\n**Universal Patterns to Monitor**:\n1. **Volume Anomalies**:\n   - Sudden increase/decrease in log rate\n   - Missing expected log entries\n   - Unusual time gaps\n\n2. **Content Anomalies**:\n   - New error types appearing\n   - Changed message formats\n   - Unexpected parameter values\n\n3. **Sequence Anomalies**:\n   - Out-of-order events\n   - Missing correlation IDs\n   - Broken transaction chains\n\n4. **Statistical Anomalies**:\n   - Deviation from baseline metrics\n   - Unusual distributions\n   - Correlation breakdowns\n\n**Cross-Domain Red Flags**:\n- Errors without corresponding requests\n- Authentication without subsequent activity\n- Resource usage without workload\n\n**Recommendations**:\n1. Establish baselines for normal behavior\n2. Set alerts for statistical deviations\n3. Implement log correlation across services\n4. Regular pattern review",
+      "transferable_patterns": [
+        "Absence of expected logs is also an anomaly",
+        "Pattern changes often precede failures",
+        "Cross-service correlation reveals hidden issues"
+      ]
+    }
+  ],
+
+  "domain_transfer_rules": [
+    {
+      "rule": "authentication_to_web",
+      "description": "Auth failures in SSH often correlate with web login attacks",
+      "source": "authentication",
+      "target": "web_server",
+      "pattern": "If SSH auth failures increase, check web login endpoints"
+    },
+    {
+      "rule": "network_to_database",
+      "description": "Network timeouts cause database connection issues",
+      "source": "network",
+      "target": "database",
+      "pattern": "Network issues manifest as database connection pool exhaustion"
+    },
+    {
+      "rule": "system_to_application",
+      "description": "System resource issues cause application errors",
+      "source": "system",
+      "target": "application",
+      "pattern": "OOM/CPU issues cause application exceptions and timeouts"
+    },
+    {
+      "rule": "web_to_database",
+      "description": "Web traffic patterns affect database performance",
+      "source": "web_server",
+      "target": "database",
+      "pattern": "Request spikes cause database query queuing"
+    },
+    {
+      "rule": "security_to_all",
+      "description": "Security events leave traces across all domains",
+      "source": "security",
+      "target": "all",
+      "pattern": "Attacks create correlated anomalies in multiple log types"
+    }
+  ],
+
+  "meta_learning_prompts": {
+    "pattern_recognition": "When analyzing logs from domain X, consider how similar patterns manifest in related domains. For example, {example}",
+    "root_cause": "Root cause analysis should trace through: Application → Database → Network → System. Each layer can reveal contributing factors.",
+    "correlation": "Look for temporal correlations across services. Events within 5 minutes of each other may be causally related."
+  }
+}
