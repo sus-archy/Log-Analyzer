@@ -30,3 +30,16 @@ pytest-asyncio>=0.21.0
 
 # Date parsing
 python-dateutil>=2.8.2
+
+# Security & Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Rate limiting
+slowapi>=0.1.9
+
+# ML/Data Science (already have numpy and faiss-cpu above)
+# Note: Our ML implementations use pure numpy without sklearn dependency
+# This keeps the install size small while providing real ML capabilities
+# Progress bars
+tqdm>=4.66.0

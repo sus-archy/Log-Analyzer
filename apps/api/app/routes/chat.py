@@ -2,11 +2,12 @@
 Chat routes for grounded chat with logs using cross-domain few-shot learning.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from typing import Optional
 
 from ..core.logging import get_logger
 from ..core.cache import get_cache, CacheTTL
+from ..core.rate_limit import limiter, RATE_LIMITS
 from ..schemas.chat import ChatRequest, ChatResponse
 from ..services.chat_service import get_chat_service
 from ..services.embedding_service import get_embedding_service
@@ -17,7 +18,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+@limiter.limit(RATE_LIMITS["chat"])
+async def chat(request: Request, chat_request: ChatRequest):
     """
     Chat with logs for diagnosis using cross-domain few-shot learning.
     
@@ -26,23 +28,28 @@ async def chat(request: ChatRequest):
     
     Requires a scope (service_name + time range) and a question.
     Returns a grounded answer with citations to templates and logs.
+    
+    **Rate limited**: 10 requests per minute.
     """
     service = get_chat_service()
     
     try:
-        return await service.chat(request)
+        return await service.chat(chat_request)
     except Exception as e:
         logger.error(f"Chat failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/embed")
-async def process_embeddings(max_templates: int = 100):
+@limiter.limit(RATE_LIMITS["embed"])
+async def process_embeddings(request: Request, max_templates: int = 100):
     """
     Process pending template embeddings.
     
     Called manually or by a background job to generate embeddings
     for templates that don't have them yet.
+    
+    **Rate limited**: 5 requests per minute.
     """
     service = get_embedding_service()
     

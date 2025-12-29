@@ -6,20 +6,22 @@
 **- reports**
 
 
+NOTES {
 
 Improve the Accuracy of the model it is low persents, and also change the way how the model train make it more good than that, make it with the way we talked about few shot learning and u have the logs u can train on take it and train the model on it 
+
 **- pagination add it also in the Backend not only in the front to make it faster and more sustainable to load the logs**
+
 update the reporst its statistics is not correct at all or change the logic of how it works
 
 recheck on Severity Distribution and Log Volume (Hourly Trend) diagrams it is not correct at all and also Security Score make it with out any cycles to avoid any shape problems and also Security Events by Category it is not correct at all 
-
 authentication failures ---- 0
 brute force indicators ---- 0
 suspicious access ---- 0
 network issues ---- 2
 system errors ---- 516
 
-
+}
 
 
 

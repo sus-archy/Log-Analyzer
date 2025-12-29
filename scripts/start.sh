@@ -2,8 +2,10 @@
 # LogMind AI - Easy Startup Script
 # Usage: ./start.sh
 
-PROJECT_DIR="/home/bug/Desktop/Log_Analyzer"
-VENV_DIR="$PROJECT_DIR/.venv"
+# Get the directory where this script is located (portable)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="$SCRIPT_DIR/.venv"
 API_DIR="$PROJECT_DIR/apps/api"
 UI_DIR="$PROJECT_DIR/apps/ui"
 
@@ -15,6 +17,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}🧠 LogMind AI - Starting...${NC}"
+echo -e "${BLUE}   Project: $PROJECT_DIR${NC}"
 echo ""
 
 # Kill existing processes
@@ -30,6 +33,14 @@ if curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; then
 else
     echo -e "${RED}✗ Ollama is not running. Please start it with: ollama serve${NC}"
     exit 1
+fi
+
+# Check if virtual environment exists
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${YELLOW}Creating virtual environment...${NC}"
+    python3 -m venv "$VENV_DIR"
+    echo -e "${YELLOW}Installing dependencies...${NC}"
+    "$VENV_DIR/bin/pip" install -r "$API_DIR/requirements.txt"
 fi
 
 # Start API server

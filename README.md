@@ -8,7 +8,18 @@ A local-first log observability platform with AI-powered insights.
 - **Template Mining**: Drain-based algorithm extracts reusable log templates with parameters
 - **Semantic Search**: FAISS-powered vector similarity search using Ollama embeddings
 - **AI Chat**: Ask questions about your logs with grounded, citation-backed answers
+- **ML Analytics**: Real machine learning for anomaly detection, classification, and threat detection
+- **Predictive Analytics**: Time-series forecasting for system health prediction
 - **Web UI**: Modern Next.js interface with Explorer, Templates, and Chat views
+
+## Documentation
+
+📚 See the [docs/](docs/) folder for detailed documentation:
+
+- [Project Structure](docs/PROJECT_STRUCTURE.md) - Codebase organization
+- [API Documentation](docs/DOCUMENTATION.md) - REST API reference
+- [ML Documentation](docs/ML_DOCUMENTATION.md) - Machine learning guide
+- [Architecture](docs/ARCHITECTURE.md) - System design
 
 ## Architecture
 
@@ -101,13 +112,23 @@ Environment variables (set in `.env` or shell):
 | `FAISS_INDEX_PATH` | `./data/faiss_index.bin` | FAISS index path |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embedding model name |
-| `OLLAMA_CHAT_MODEL` | `nemotron-mini` | Chat model name |
+| `OLLAMA_CHAT_MODEL` | `qwen2.5:3b` | Chat model name |
 | `EMBED_DIM` | `768` | Embedding dimension |
+| `AUTH_ENABLED` | `false` | Enable JWT authentication |
+| `SECRET_KEY` | (random) | JWT signing key |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
+| `RATE_LIMIT_CHAT` | `20/minute` | Rate limit for chat endpoint |
+| `DB_POOL_SIZE` | `5` | Database connection pool size |
 
 ## API Endpoints
 
 ### Health
-- `GET /health` - Health check
+- `GET /health` - Health check (includes Ollama status)
+
+### Authentication (when enabled)
+- `POST /auth/token` - Get JWT access token
+- `GET /auth/me` - Get current user info
+- `GET /auth/status` - Check auth configuration
 
 ### Ingest
 - `POST /ingest` - Ingest logs from configured folder
@@ -115,6 +136,7 @@ Environment variables (set in `.env` or shell):
 ### Logs
 - `GET /logs` - Query logs with filters
 - `GET /logs/services` - List distinct services
+- `GET /logs/stats/quick` - Quick statistics
 
 ### Templates
 - `GET /templates/top` - Get top templates by occurrence
@@ -124,8 +146,13 @@ Environment variables (set in `.env` or shell):
 ### Semantic Search
 - `POST /semantic/search` - Search templates by semantic similarity
 
-### Chat
+### Chat (rate limited)
 - `POST /chat` - Ask questions about logs with AI
+
+### Metrics
+- `GET /metrics/performance` - Performance metrics
+- `GET /metrics/security` - Security analysis
+- `GET /metrics/services/health` - Service health status
 
 ## Project Structure
 
@@ -133,21 +160,21 @@ Environment variables (set in `.env` or shell):
 ├── apps/
 │   ├── api/                    # FastAPI backend
 │   │   ├── app/
-│   │   │   ├── core/           # Config, logging, utilities
+│   │   │   ├── core/           # Config, logging, security, rate limiting
 │   │   │   ├── llm/            # Ollama client
 │   │   │   ├── parsers/        # Log parsing, Drain miner
-│   │   │   ├── routes/         # API routes
-│   │   │   ├── schemas/        # Pydantic models
-│   │   │   ├── services/       # Business logic
-│   │   │   ├── storage/        # Database, repos
+│   │   │   ├── routes/         # API routes (with auth)
+│   │   │   ├── schemas/        # Pydantic models (with validation)
+│   │   │   ├── services/       # Business logic (metrics, security)
+│   │   │   ├── storage/        # Database (with connection pool), repos
 │   │   │   └── vector/         # FAISS index
 │   │   ├── tests/              # Unit tests
 │   │   └── requirements.txt
 │   └── ui/                     # Next.js frontend
 │       ├── src/
 │       │   ├── app/            # Pages
-│       │   ├── components/     # React components
-│       │   ├── lib/            # API client
+│       │   ├── components/     # React components (with ErrorBoundary)
+│       │   ├── lib/            # API client, Zustand store
 │       │   └── types.ts        # TypeScript types
 │       └── package.json
 ├── Logs/                       # Log files for ingestion

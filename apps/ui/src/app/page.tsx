@@ -5,7 +5,7 @@ import {
   Search, FileText, Database, RefreshCw, 
   AlertCircle, Activity, Clock, Server, Zap, ChevronRight,
   BarChart2, TrendingUp, Settings, Upload, FolderOpen, Brain,
-  Sparkles, Shield, Cpu
+  Sparkles, Shield, Cpu, MessageCircle
 } from 'lucide-react';
 import { getServices, ingestFromFolder, processEmbeddings, healthCheck, uploadLogFile, getEmbeddingStats, type EmbeddingStats } from '@/lib/api';
 import LogExplorer from '@/components/LogExplorer';
@@ -17,8 +17,9 @@ import AnomalyView from '@/components/AnomalyView';
 import SemanticSearchView from '@/components/SemanticSearchView';
 import ServiceSelector from '@/components/ServiceSelector';
 import ReportsView from '@/components/ReportsView';
+import AIChat from '@/components/AIChat';
 
-type Tab = 'explorer' | 'templates' | 'stats' | 'ai-model' | 'anomaly' | 'semantic' | 'reports';
+type Tab = 'explorer' | 'templates' | 'stats' | 'ai-model' | 'anomaly' | 'semantic' | 'reports' | 'ai-chat';
 
 interface UploadProgress {
   fileName: string;
@@ -243,6 +244,7 @@ export default function Home() {
     { id: 'stats' as Tab, label: 'Statistics', icon: BarChart2, description: 'Analytics & insights' },
     { id: 'reports' as Tab, label: 'Reports', icon: TrendingUp, description: 'Full analysis reports' },
     { id: 'semantic' as Tab, label: 'AI Search', icon: Sparkles, description: 'Natural language search' },
+    { id: 'ai-chat' as Tab, label: 'AI Chat', icon: MessageCircle, description: 'Test models & analyze' },
     { id: 'anomaly' as Tab, label: 'Anomalies', icon: Shield, description: 'Detect issues' },
     { id: 'ai-model' as Tab, label: 'AI Dashboard', icon: Cpu, description: 'Model & training' },
   ];
@@ -503,6 +505,9 @@ export default function Home() {
           </div>
           <div className={`absolute inset-0 ${activeTab === 'ai-model' ? '' : 'hidden'}`}>
             <AIModelView />
+          </div>
+          <div className={`absolute inset-0 ${activeTab === 'ai-chat' ? '' : 'hidden'}`}>
+            <AIChat />
           </div>
           <div className={`absolute inset-0 ${activeTab === 'reports' ? '' : 'hidden'}`}>
             <ReportsView serviceName={selectedService} timeRange={timeRange} />

@@ -101,13 +101,22 @@ class LogsRepo:
         Returns:
             Tuple of (logs, total_count)
         """
-        # Build query dynamically - use table prefix for joined columns
-        conditions = ["l.tenant_id = ?", "l.timestamp_utc >= ?", "l.timestamp_utc <= ?"]
-        params: list[str | int] = [tenant_id, from_time, to_time]
+        # Build query dynamically - order conditions for optimal index usage
+        # Service name first (if present) for idx_logs_service_time index
+        conditions = []
+        params: list[str | int] = []
         
         if service_name:
             conditions.append("l.service_name = ?")
             params.append(service_name)
+        
+        # Then timestamp range
+        conditions.extend(["l.timestamp_utc >= ?", "l.timestamp_utc <= ?"])
+        params.extend([from_time, to_time])
+        
+        # Tenant last (less selective)
+        conditions.append("l.tenant_id = ?")
+        params.append(tenant_id)
         
         if severity_min is not None:
             conditions.append("l.severity >= ?")
@@ -123,10 +132,17 @@ class LogsRepo:
         
         where_clause = " AND ".join(conditions)
         
-        # Get logs first (fast with LIMIT)
+        # Optimized: Use index hint and fetch logs first, then join
+        # Determine which index to use based on query pattern
+        index_hint = ""
+        if service_name:
+            # Service-specific query - use composite index
+            index_hint = "INDEXED BY idx_logs_service_time"
+        
+        # Get logs first (fast with LIMIT and proper index)
         cursor = await self.db.execute(f"""
             SELECT l.*, t.template_text
-            FROM logs_stream l
+            FROM logs_stream l {index_hint}
             LEFT JOIN log_templates t ON 
                 l.tenant_id = t.tenant_id AND
                 l.service_name = t.service_name AND
@@ -178,7 +194,7 @@ class LogsRepo:
             # This is much faster than COUNT(*) on millions of rows
             try:
                 check_cursor = await self.db.execute(
-                    f"""SELECT 1 FROM logs_stream l 
+                    f"""SELECT 1 FROM logs_stream l {index_hint}
                         WHERE {where_clause}
                         LIMIT 1 OFFSET ?""",
                     params + [offset + limit]

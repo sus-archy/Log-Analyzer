@@ -13,7 +13,28 @@ logger = get_logger(__name__)
 
 
 class OllamaError(Exception):
-    """Error from Ollama API."""
+    """Error from Ollama API with detailed context."""
+    
+    def __init__(self, message: str, status_code: Optional[int] = None, response_body: Optional[str] = None):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.response_body = response_body
+    
+    def __str__(self) -> str:
+        parts = [self.message]
+        if self.status_code:
+            parts.append(f"(HTTP {self.status_code})")
+        return " ".join(parts)
+
+
+class OllamaConnectionError(OllamaError):
+    """Ollama server is not reachable."""
+    pass
+
+
+class OllamaModelError(OllamaError):
+    """Model not found or not loaded."""
     pass
 
 

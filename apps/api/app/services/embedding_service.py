@@ -10,7 +10,7 @@ import numpy as np
 from ..core.config import settings
 from ..core.logging import get_logger
 from ..llm.ollama_client import get_ollama_client, OllamaError
-from ..storage.db import get_db
+from ..storage.db import db_connection
 from ..storage.templates_repo import TemplatesRepo
 from ..storage.vectors_repo import VectorsRepo
 from ..vector.faiss_index import get_faiss_index
@@ -67,79 +67,79 @@ class EmbeddingService:
             self._processing = True
         
         try:
-            db = await get_db()
-            templates_repo = TemplatesRepo(db)
-            vectors_repo = VectorsRepo(db)
-            faiss_index = get_faiss_index()
-            
-            # Get templates needing embeddings
-            templates = await templates_repo.get_templates_needing_embedding(max_templates)
-            
-            if not templates:
-                return 0
-            
-            logger.info(f"Processing {len(templates)} templates for embedding")
-            
-            processed = 0
-            for template in templates:
-                try:
-                    # Generate embedding
-                    vector = await self.embed_text(template.template_text)
-                    
-                    if vector is None:
+            async with db_connection() as db:
+                templates_repo = TemplatesRepo(db)
+                vectors_repo = VectorsRepo(db)
+                faiss_index = get_faiss_index()
+                
+                # Get templates needing embeddings
+                templates = await templates_repo.get_templates_needing_embedding(max_templates)
+                
+                if not templates:
+                    return 0
+                
+                logger.info(f"Processing {len(templates)} templates for embedding")
+                
+                processed = 0
+                for template in templates:
+                    try:
+                        # Generate embedding
+                        vector = await self.embed_text(template.template_text)
+                        
+                        if vector is None:
+                            await templates_repo.update_embedding_state(
+                                tenant_id=template.tenant_id,
+                                service_name=template.service_name,
+                                template_hash=template.template_hash,
+                                state="failed",
+                            )
+                            continue
+                        
+                        # Add to FAISS index
+                        faiss_id = await faiss_index.add_vector(
+                            tenant_id=template.tenant_id,
+                            service_name=template.service_name,
+                            template_hash=template.template_hash,
+                            vector=vector,
+                        )
+                        
+                        # Store in database
+                        await vectors_repo.upsert_vector(
+                            tenant_id=template.tenant_id,
+                            service_name=template.service_name,
+                            template_hash=template.template_hash,
+                            faiss_id=faiss_id,
+                            vector=vector,
+                        )
+                        
+                        # Update template state
+                        await templates_repo.update_embedding_state(
+                            tenant_id=template.tenant_id,
+                            service_name=template.service_name,
+                            template_hash=template.template_hash,
+                            state="ready",
+                            model=settings.ollama_embed_model,
+                        )
+                        
+                        processed += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to embed template {template.template_hash}: {e}")
                         await templates_repo.update_embedding_state(
                             tenant_id=template.tenant_id,
                             service_name=template.service_name,
                             template_hash=template.template_hash,
                             state="failed",
                         )
-                        continue
-                    
-                    # Add to FAISS index
-                    faiss_id = await faiss_index.add_vector(
-                        tenant_id=template.tenant_id,
-                        service_name=template.service_name,
-                        template_hash=template.template_hash,
-                        vector=vector,
-                    )
-                    
-                    # Store in database
-                    await vectors_repo.upsert_vector(
-                        tenant_id=template.tenant_id,
-                        service_name=template.service_name,
-                        template_hash=template.template_hash,
-                        faiss_id=faiss_id,
-                        vector=vector,
-                    )
-                    
-                    # Update template state
-                    await templates_repo.update_embedding_state(
-                        tenant_id=template.tenant_id,
-                        service_name=template.service_name,
-                        template_hash=template.template_hash,
-                        state="ready",
-                        model=settings.ollama_embed_model,
-                    )
-                    
-                    processed += 1
-                    
-                except Exception as e:
-                    logger.error(f"Failed to embed template {template.template_hash}: {e}")
-                    await templates_repo.update_embedding_state(
-                        tenant_id=template.tenant_id,
-                        service_name=template.service_name,
-                        template_hash=template.template_hash,
-                        state="failed",
-                    )
-            
-            await db.commit()
-            
-            # Save FAISS index
-            if processed > 0:
-                await faiss_index.save()
-            
-            logger.info(f"Embedded {processed} templates")
-            return processed
+                
+                await db.commit()
+                
+                # Save FAISS index
+                if processed > 0:
+                    await faiss_index.save()
+                
+                logger.info(f"Embedded {processed} templates")
+                return processed
             
         finally:
             self._processing = False
@@ -151,22 +151,22 @@ class EmbeddingService:
         Returns:
             Number of vectors loaded
         """
-        db = await get_db()
-        vectors_repo = VectorsRepo(db)
-        faiss_index = get_faiss_index()
-        
-        # Get all vectors from database
-        vectors_data = await vectors_repo.get_all_vectors()
-        
-        if not vectors_data:
-            logger.info("No vectors in database to rebuild from")
-            return 0
-        
-        # Rebuild index
-        await faiss_index.rebuild_from_vectors(vectors_data)
-        
-        logger.info(f"Rebuilt index with {len(vectors_data)} vectors")
-        return len(vectors_data)
+        async with db_connection() as db:
+            vectors_repo = VectorsRepo(db)
+            faiss_index = get_faiss_index()
+            
+            # Get all vectors from database
+            vectors_data = await vectors_repo.get_all_vectors()
+            
+            if not vectors_data:
+                logger.info("No vectors in database to rebuild from")
+                return 0
+            
+            # Rebuild index
+            await faiss_index.rebuild_from_vectors(vectors_data)
+            
+            logger.info(f"Rebuilt index with {len(vectors_data)} vectors")
+            return len(vectors_data)
     
     async def ensure_index_loaded(self) -> None:
         """
@@ -181,14 +181,14 @@ class EmbeddingService:
         
         if loaded:
             # Index loaded, need to restore mappings from DB
-            db = await get_db()
-            vectors_repo = VectorsRepo(db)
-            vectors_data = await vectors_repo.get_all_vectors()
-            
-            for faiss_id, tenant_id, service_name, template_hash, _ in vectors_data:
-                faiss_index.set_mapping(faiss_id, tenant_id, service_name, template_hash)
-            
-            logger.info(f"Restored {len(vectors_data)} mappings for FAISS index")
+            async with db_connection() as db:
+                vectors_repo = VectorsRepo(db)
+                vectors_data = await vectors_repo.get_all_vectors()
+                
+                for faiss_id, tenant_id, service_name, template_hash, _ in vectors_data:
+                    faiss_index.set_mapping(faiss_id, tenant_id, service_name, template_hash)
+                
+                logger.info(f"Restored {len(vectors_data)} mappings for FAISS index")
         else:
             # Try to rebuild from database
             count = await self.rebuild_index_from_db()
@@ -202,43 +202,42 @@ class EmbeddingService:
         Returns:
             Dict with total_templates, embedded_count, pending_count, percentage
         """
-        db = await get_db()
-        
-        # Get total templates count
-        cursor = await db.execute("SELECT COUNT(*) FROM log_templates")
-        row = await cursor.fetchone()
-        total_templates = row[0] if row else 0
-        
-        # Get embedded count
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM log_templates WHERE embedding_state = 'ready'"
-        )
-        row = await cursor.fetchone()
-        embedded_count = row[0] if row else 0
-        
-        # Get pending count
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM log_templates WHERE embedding_state IN ('none', 'queued')"
-        )
-        row = await cursor.fetchone()
-        pending_count = row[0] if row else 0
-        
-        # Get failed count
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM log_templates WHERE embedding_state = 'failed'"
-        )
-        row = await cursor.fetchone()
-        failed_count = row[0] if row else 0
-        
-        percentage = (embedded_count / total_templates * 100) if total_templates > 0 else 0
-        
-        return {
-            "total_templates": total_templates,
-            "embedded_count": embedded_count,
-            "pending_count": pending_count,
-            "failed_count": failed_count,
-            "percentage": round(percentage, 1),
-        }
+        async with db_connection() as db:
+            # Get total templates count
+            cursor = await db.execute("SELECT COUNT(*) FROM log_templates")
+            row = await cursor.fetchone()
+            total_templates = row[0] if row else 0
+            
+            # Get embedded count
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM log_templates WHERE embedding_state = 'ready'"
+            )
+            row = await cursor.fetchone()
+            embedded_count = row[0] if row else 0
+            
+            # Get pending count
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM log_templates WHERE embedding_state IN ('none', 'queued')"
+            )
+            row = await cursor.fetchone()
+            pending_count = row[0] if row else 0
+            
+            # Get failed count
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM log_templates WHERE embedding_state = 'failed'"
+            )
+            row = await cursor.fetchone()
+            failed_count = row[0] if row else 0
+            
+            percentage = (embedded_count / total_templates * 100) if total_templates > 0 else 0
+            
+            return {
+                "total_templates": total_templates,
+                "embedded_count": embedded_count,
+                "pending_count": pending_count,
+                "failed_count": failed_count,
+                "percentage": round(percentage, 1),
+            }
 
 
 # Global service instance

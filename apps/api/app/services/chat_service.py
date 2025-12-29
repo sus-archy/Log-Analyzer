@@ -9,7 +9,7 @@ from ..core.logging import get_logger
 from ..llm.ollama_client import get_ollama_client, OllamaError
 from ..schemas.chat import ChatRequest, ChatResponse, Citation
 from ..schemas.templates import TemplateWithCount
-from ..storage.db import get_db
+from ..storage.db import db_connection
 from ..storage.templates_repo import TemplatesRepo
 from ..storage.logs_repo import LogsRepo
 from .semantic_service import get_semantic_service
@@ -134,114 +134,114 @@ class ChatService:
         Returns:
             Tuple of (evidence text, citations list)
         """
-        db = await get_db()
-        templates_repo = TemplatesRepo(db)
-        logs_repo = LogsRepo(db)
-        
-        citations: List[Citation] = []
-        evidence_parts: List[str] = []
-        
-        logger.info(f"Gathering evidence: tenant={tenant_id}, service={service_name}, from={from_time}, to={to_time}")
-        
-        # 1. Get top error templates (reduced for speed)
-        try:
-            top_templates = await templates_repo.get_top_templates(
-                tenant_id=tenant_id,
-                service_name=service_name,
-                from_time=from_time,
-                to_time=to_time,
-                severity_min=0,  # All severities
-                limit=5,  # Reduced for speed
-            )
-            logger.info(f"Got {len(top_templates)} top templates")
-        except Exception as e:
-            logger.warning(f"Failed to get top templates: {e}", exc_info=True)
-            top_templates = []
-        
-        if top_templates:
-            evidence_parts.append("=== TOP LOG PATTERNS ===")
-            for t in top_templates:
-                evidence_parts.append(
-                    f"[template:{t.template_hash}] (count={t.count}): {t.template_text}"
-                )
-                citations.append(Citation(
-                    type="template",
-                    service_name=service_name,
-                    template_hash=t.template_hash,
-                    template_text=t.template_text,
-                    relevance="top pattern",
-                ))
-        
-        # 2. Try semantic search only if we have embeddings
-        try:
-            semantic_service = get_semantic_service()
-            semantic_results = await semantic_service.search(
-                query=question,
-                tenant_id=tenant_id,
-                service_name=service_name,
-                from_time=from_time,
-                to_time=to_time,
-                limit=3,  # Reduced for speed
-            )
+        async with db_connection() as db:
+            templates_repo = TemplatesRepo(db)
+            logs_repo = LogsRepo(db)
             
-            if semantic_results.results:
-                evidence_parts.append("\n=== RELATED PATTERNS ===")
-                for r in semantic_results.results:
-                    if any(c.template_hash == r.template_hash for c in citations):
-                        continue
+            citations: List[Citation] = []
+            evidence_parts: List[str] = []
+            
+            logger.info(f"Gathering evidence: tenant={tenant_id}, service={service_name}, from={from_time}, to={to_time}")
+            
+            # 1. Get top error templates (reduced for speed)
+            try:
+                top_templates = await templates_repo.get_top_templates(
+                    tenant_id=tenant_id,
+                    service_name=service_name,
+                    from_time=from_time,
+                    to_time=to_time,
+                    severity_min=0,  # All severities
+                    limit=5,  # Reduced for speed
+                )
+                logger.info(f"Got {len(top_templates)} top templates")
+            except Exception as e:
+                logger.warning(f"Failed to get top templates: {e}", exc_info=True)
+                top_templates = []
+            
+            if top_templates:
+                evidence_parts.append("=== TOP LOG PATTERNS ===")
+                for t in top_templates:
                     evidence_parts.append(
-                        f"[template:{r.template_hash}] (relevance={r.score:.2f}): {r.template_text}"
+                        f"[template:{t.template_hash}] (count={t.count}): {t.template_text}"
                     )
                     citations.append(Citation(
                         type="template",
                         service_name=service_name,
-                        template_hash=r.template_hash,
-                        template_text=r.template_text,
-                        relevance="semantic match",
+                        template_hash=t.template_hash,
+                        template_text=t.template_text,
+                        relevance="top pattern",
                     ))
-        except Exception as e:
-            logger.warning(f"Semantic search failed (may not have embeddings): {e}")
-        
-        # 3. Get a few sample logs
-        evidence_parts.append("\n=== SAMPLE LOGS ===")
-        sample_count = 0
-        max_samples = 5  # Reduced for speed
-        
-        for template in top_templates[:3]:
-            if sample_count >= max_samples:
-                break
             
+            # 2. Try semantic search only if we have embeddings
             try:
-                sample_logs = await logs_repo.get_sample_logs_for_template(
+                semantic_service = get_semantic_service()
+                semantic_results = await semantic_service.search(
+                    query=question,
                     tenant_id=tenant_id,
                     service_name=service_name,
-                    template_hash=template.template_hash,
                     from_time=from_time,
                     to_time=to_time,
-                    limit=2,
+                    limit=3,  # Reduced for speed
                 )
                 
-                for log in sample_logs:
-                    if sample_count >= max_samples:
-                        break
-                    evidence_parts.append(
-                        f"[log:{log.id}] {log.timestamp_utc} [{log.severity_name}]: {log.body_raw[:150]}"
-                    )
-                    citations.append(Citation(
-                        type="log",
-                        log_id=log.id,
-                        relevance=f"example",
-                    ))
-                    sample_count += 1
+                if semantic_results.results:
+                    evidence_parts.append("\n=== RELATED PATTERNS ===")
+                    for r in semantic_results.results:
+                        if any(c.template_hash == r.template_hash for c in citations):
+                            continue
+                        evidence_parts.append(
+                            f"[template:{r.template_hash}] (relevance={r.score:.2f}): {r.template_text}"
+                        )
+                        citations.append(Citation(
+                            type="template",
+                            service_name=service_name,
+                            template_hash=r.template_hash,
+                            template_text=r.template_text,
+                            relevance="semantic match",
+                        ))
             except Exception as e:
-                logger.warning(f"Failed to get sample logs: {e}")
-        
-        evidence_text = "\\n".join(evidence_parts) if evidence_parts else "No log data found in the specified scope."
-        
-        # Collect sample log texts for domain detection
-        sample_texts = [p for p in evidence_parts if "[template:" in p or "[log:" in p]
-        
-        return evidence_text, citations, sample_texts
+                logger.warning(f"Semantic search failed (may not have embeddings): {e}")
+            
+            # 3. Get a few sample logs
+            evidence_parts.append("\n=== SAMPLE LOGS ===")
+            sample_count = 0
+            max_samples = 5  # Reduced for speed
+            
+            for template in top_templates[:3]:
+                if sample_count >= max_samples:
+                    break
+                
+                try:
+                    sample_logs = await logs_repo.get_sample_logs_for_template(
+                        tenant_id=tenant_id,
+                        service_name=service_name,
+                        template_hash=template.template_hash,
+                        from_time=from_time,
+                        to_time=to_time,
+                        limit=2,
+                    )
+                    
+                    for log in sample_logs:
+                        if sample_count >= max_samples:
+                            break
+                        evidence_parts.append(
+                            f"[log:{log.id}] {log.timestamp_utc} [{log.severity_name}]: {log.body_raw[:150]}"
+                        )
+                        citations.append(Citation(
+                            type="log",
+                            log_id=log.id,
+                            relevance=f"example",
+                        ))
+                        sample_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to get sample logs: {e}")
+            
+            evidence_text = "\\n".join(evidence_parts) if evidence_parts else "No log data found in the specified scope."
+            
+            # Collect sample log texts for domain detection
+            sample_texts = [p for p in evidence_parts if "[template:" in p or "[log:" in p]
+            
+            return evidence_text, citations, sample_texts
     
     def _build_user_message(
         self,

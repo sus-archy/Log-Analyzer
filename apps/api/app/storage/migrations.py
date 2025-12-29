@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 # Schema version for tracking migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 async def run_migrations(db: aiosqlite.Connection) -> None:
@@ -34,6 +34,10 @@ async def run_migrations(db: aiosqlite.Connection) -> None:
     if current_version < 1:
         await migrate_v1(db)
         await db.execute("INSERT INTO schema_version (version) VALUES (?)", (1,))
+    
+    if current_version < 2:
+        await migrate_v2(db)
+        await db.execute("INSERT INTO schema_version (version) VALUES (?)", (2,))
     
     await db.commit()
     logger.info(f"Database schema at version {SCHEMA_VERSION}")
@@ -168,3 +172,39 @@ async def migrate_v1(db: aiosqlite.Connection) -> None:
     """)
     
     logger.info("Migration v1 complete")
+
+
+async def migrate_v2(db: aiosqlite.Connection) -> None:
+    """Add performance indexes and analyze tables."""
+    logger.info("Applying migration v2: Performance indexes")
+    
+    # Add timestamp-only index for time range queries
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_logs_timestamp
+        ON logs_stream (timestamp_utc)
+    """)
+    
+    # Add severity index for filtering
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_logs_severity
+        ON logs_stream (severity)
+    """)
+    
+    # Add tenant + timestamp index for common queries
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_logs_tenant_time
+        ON logs_stream (tenant_id, timestamp_utc)
+    """)
+    
+    # Add index for service listing
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_logs_service
+        ON logs_stream (service_name)
+    """)
+    
+    # Analyze tables to update query planner statistics
+    await db.execute("ANALYZE logs_stream")
+    await db.execute("ANALYZE log_templates")
+    await db.execute("ANALYZE template_vectors")
+    
+    logger.info("Migration v2 complete")

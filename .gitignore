@@ -1,10 +1,33 @@
-# Data files
-data/
-*.sqlite
-*.db
-faiss.index
+# ==========================================
+# LogMind AI - Git Ignore Configuration
+# ==========================================
 
+# ------------------------------------------
+# Data & ML Models (generated/large files)
+# ------------------------------------------
+data/
+!data/.gitkeep
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db
+*.index
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.onnx
+*.pt
+*.pth
+
+# Keep data directory structure
+data/models/.gitkeep
+data/kaggle_export/
+
+# ------------------------------------------
 # Python
+# ------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
@@ -25,36 +48,164 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+*.manifest
+*.spec
+
+# Virtual environments (all locations)
 venv/
 .venv/
 env/
+ENV/
+scripts/.venv/
+apps/api/.venv/
 
-# Node
+# ------------------------------------------
+# Node.js / Frontend
+# ------------------------------------------
 node_modules/
 .next/
 out/
 .npm
 *.tsbuildinfo
+.turbo/
+.vercel/
+.cache/
 
-# IDE
+# Package manager locks (optional - uncomment if you want to track them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ------------------------------------------
+# IDE & Editors
+# ------------------------------------------
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
 
-# Environment
+# ------------------------------------------
+# Environment Variables & Secrets
+# ------------------------------------------
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+!.env.example
 
-# Logs (keep structure, ignore contents)
-logs/**/*.log
-logs/**/*.txt
-!logs/.gitkeep
+# ------------------------------------------
+# Logs (keep structure, ignore data)
+# ------------------------------------------
+Logs/
+!Logs/.gitkeep
+!Logs/loghub/
+*.log
+logs/
 
-# OS
+# ------------------------------------------
+# OS Files
+# ------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+*.bak
+*.tmp
+*.temp
+*~
+
+# ------------------------------------------
+# Testing & Coverage
+# ------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+junit.xml
+test-results/
+playwright-report/
+test-results.xml
+
+# ------------------------------------------
+# Build Outputs
+# ------------------------------------------
+*.exe
+*.dll
+*.dylib
+*.whl
+*.tar.gz
+*.zip
+
+# ------------------------------------------
+# Temporary & Cache Files
+# ------------------------------------------
+*.cache
+*.swp
+.temp/
+tmp/
+temp/
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------------------
+# Documentation Build
+# ------------------------------------------
+docs/_build/
+site/
+.docusaurus/
+
+# ------------------------------------------
+# API Data (duplicate databases)
+# ------------------------------------------
+apps/api/data/
+!apps/api/data/.gitkeep
+
+# ------------------------------------------
+# Jupyter Notebooks Checkpoints
+# ------------------------------------------
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ------------------------------------------
+# Security (never commit these)
+# ------------------------------------------
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets/
+credentials/
+
+# ------------------------------------------
+# Project-specific ignores
+# ------------------------------------------
+# Test files in root
+test_*.py
+!apps/api/tests/test_*.py
+
+# Kaggle exports
+kaggle_export/
+
+# Large log datasets
+*.csv
+!Logs/loghub/**/*.csv

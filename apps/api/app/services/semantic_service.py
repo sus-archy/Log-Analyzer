@@ -9,7 +9,7 @@ import numpy as np
 from ..core.config import settings
 from ..core.logging import get_logger
 from ..schemas.chat import SemanticSearchResult, SemanticSearchResponse
-from ..storage.db import get_db
+from ..storage.db import db_connection
 from ..storage.templates_repo import TemplatesRepo
 from ..storage.logs_repo import LogsRepo
 from ..vector.faiss_index import get_faiss_index
@@ -78,67 +78,67 @@ class SemanticService:
                 to_time=to_time,
             )
         
-        db = await get_db()
-        templates_repo = TemplatesRepo(db)
-        logs_repo = LogsRepo(db)
-        
-        results: List[SemanticSearchResult] = []
-        
-        for res_tenant_id, res_service_name, template_hash, score in search_results:
-            # Filter by tenant
-            if res_tenant_id != tenant_id:
-                continue
-            # Filter by service only if service_name is specified
-            if service_name and res_service_name != service_name:
-                continue
+        async with db_connection() as db:
+            templates_repo = TemplatesRepo(db)
+            logs_repo = LogsRepo(db)
             
-            # Get template
-            template = await templates_repo.get_template(
-                tenant_id=res_tenant_id,
-                service_name=res_service_name,
-                template_hash=template_hash,
-            )
+            results: List[SemanticSearchResult] = []
             
-            if template is None:
-                continue
+            for res_tenant_id, res_service_name, template_hash, score in search_results:
+                # Filter by tenant
+                if res_tenant_id != tenant_id:
+                    continue
+                # Filter by service only if service_name is specified
+                if service_name and res_service_name != service_name:
+                    continue
+                
+                # Get template
+                template = await templates_repo.get_template(
+                    tenant_id=res_tenant_id,
+                    service_name=res_service_name,
+                    template_hash=template_hash,
+                )
+                
+                if template is None:
+                    continue
+                
+                # Get count in time window
+                count = await templates_repo.get_template_count(
+                    tenant_id=res_tenant_id,
+                    service_name=res_service_name,
+                    template_hash=template_hash,
+                    from_time=from_time,
+                    to_time=to_time,
+                )
+                
+                # Get sample log IDs
+                sample_logs = await logs_repo.get_sample_logs_for_template(
+                    tenant_id=res_tenant_id,
+                    service_name=res_service_name,
+                    template_hash=template_hash,
+                    from_time=from_time,
+                    to_time=to_time,
+                    limit=3,
+                )
+                
+                results.append(SemanticSearchResult(
+                    template_hash=str(template_hash),  # Convert to string for JS
+                    template_text=template.template_text,
+                    score=score,
+                    count=count,
+                    sample_log_ids=[log.id for log in sample_logs],
+                ))
+                
+                if len(results) >= limit:
+                    break
             
-            # Get count in time window
-            count = await templates_repo.get_template_count(
-                tenant_id=res_tenant_id,
-                service_name=res_service_name,
-                template_hash=template_hash,
+            return SemanticSearchResponse(
+                results=results,
+                query=query,
+                service_name=service_name,
                 from_time=from_time,
                 to_time=to_time,
             )
-            
-            # Get sample log IDs
-            sample_logs = await logs_repo.get_sample_logs_for_template(
-                tenant_id=res_tenant_id,
-                service_name=res_service_name,
-                template_hash=template_hash,
-                from_time=from_time,
-                to_time=to_time,
-                limit=3,
-            )
-            
-            results.append(SemanticSearchResult(
-                template_hash=str(template_hash),  # Convert to string for JS
-                template_text=template.template_text,
-                score=score,
-                count=count,
-                sample_log_ids=[log.id for log in sample_logs],
-            ))
-            
-            if len(results) >= limit:
-                break
-        
-        return SemanticSearchResponse(
-            results=results,
-            query=query,
-            service_name=service_name,
-            from_time=from_time,
-            to_time=to_time,
-        )
 
 
 # Global service instance

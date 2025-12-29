@@ -6,7 +6,7 @@ import {
   Loader2, RefreshCw, Zap, Database, TrendingUp,
   BarChart2, AlertTriangle, Server, Sparkles
 } from 'lucide-react';
-import { getEmbeddingStats, processEmbeddings, healthCheck, type EmbeddingStats } from '@/lib/api';
+import { getEmbeddingStats, processEmbeddings, healthCheck, getModelTrainingStatus, type EmbeddingStats, type ModelTrainingStatus } from '@/lib/api';
 
 interface ModelInfo {
   name: string;
@@ -18,12 +18,14 @@ interface ModelInfo {
 }
 
 interface TrainingMetrics {
-  accuracy: number;
-  precision: number;
-  recall: number;
-  f1Score: number;
+  severityAccuracy: number;
+  domainAccuracy: number;
+  securityAccuracy: number;
+  anomalyThreshold: number;
   coveragePercent: number;
-  avgEmbeddingTime: number;
+  modelsLoaded: boolean;
+  lastTrained?: string;
+  samplesTrained?: number;
 }
 
 export default function AIModelView() {
@@ -34,6 +36,7 @@ export default function AIModelView() {
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [modelStatus, setModelStatus] = useState<ModelTrainingStatus | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -64,16 +67,43 @@ export default function AIModelView() {
       const stats = await getEmbeddingStats();
       setEmbeddingStats(stats);
 
-      // Calculate simulated metrics based on embedding progress
-      const coverage = stats.percentage;
-      setMetrics({
-        accuracy: Math.min(95, 70 + coverage * 0.25),
-        precision: Math.min(92, 65 + coverage * 0.27),
-        recall: Math.min(90, 60 + coverage * 0.30),
-        f1Score: Math.min(91, 62 + coverage * 0.29),
-        coveragePercent: coverage,
-        avgEmbeddingTime: 45 + Math.random() * 30,
-      });
+      // Get real model training status from API
+      try {
+        const mlStatus = await getModelTrainingStatus();
+        setModelStatus(mlStatus);
+        
+        // Extract real metrics from trained models
+        const severityAcc = mlStatus.models.log_classifier.training_stats?.severity_accuracy || 0;
+        const domainAcc = mlStatus.models.log_classifier.training_stats?.domain_accuracy || 0;
+        const securityAcc = mlStatus.models.security_detector.training_stats?.accuracy || 0;
+        const threshold = mlStatus.models.anomaly_detector.threshold || 0.5;
+        
+        // Get last training info
+        const history = mlStatus.models.anomaly_detector.training_history;
+        const lastTraining = history && history.length > 0 ? history[history.length - 1] : null;
+        
+        setMetrics({
+          severityAccuracy: severityAcc * 100,
+          domainAccuracy: domainAcc * 100,
+          securityAccuracy: securityAcc * 100,
+          anomalyThreshold: threshold * 100,
+          coveragePercent: stats.percentage,
+          modelsLoaded: Object.values(mlStatus.models_exist).every(v => v),
+          lastTrained: lastTraining?.timestamp,
+          samplesTrained: lastTraining?.samples,
+        });
+      } catch (mlError) {
+        console.warn('Could not fetch model training status:', mlError);
+        // Fallback to default metrics
+        setMetrics({
+          severityAccuracy: 0,
+          domainAccuracy: 0,
+          securityAccuracy: 0,
+          anomalyThreshold: 50,
+          coveragePercent: stats.percentage,
+          modelsLoaded: false,
+        });
+      }
 
     } catch (e) {
       console.error('Failed to load AI data:', e);
@@ -89,20 +119,46 @@ export default function AIModelView() {
 
     try {
       let totalProcessed = 0;
-      let processed = 0;
+      let consecutiveZeros = 0;
+      let retryCount = 0;
+      const maxRetries = 3;
 
-      do {
-        processed = (await processEmbeddings(50)).processed;
-        totalProcessed += processed;
-        
-        const stats = await getEmbeddingStats();
-        setEmbeddingStats(stats);
-        setTrainingProgress(stats.percentage);
+      // Keep training until we get 3 consecutive zero responses or hit retry limit
+      while (consecutiveZeros < 3 && retryCount < maxRetries) {
+        try {
+          const result = await processEmbeddings(100); // Process 100 at a time
+          const processed = result.processed;
+          totalProcessed += processed;
+          
+          const stats = await getEmbeddingStats();
+          setEmbeddingStats(stats);
+          setTrainingProgress(stats.percentage);
 
-        if (processed > 0) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          if (processed > 0) {
+            consecutiveZeros = 0;
+            retryCount = 0;
+            // Small delay to not overwhelm the server
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } else {
+            consecutiveZeros++;
+            // Check if there are still pending templates
+            if (stats.pending_count > 0) {
+              // There are pending templates but none processed - might be rate limited or error
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait longer
+              retryCount++;
+            } else {
+              // No more pending templates - we're done
+              break;
+            }
+          }
+        } catch (e) {
+          console.error('Training batch error:', e);
+          retryCount++;
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait before retry
         }
-      } while (processed > 0);
+      }
+
+      console.log(`Training complete: ${totalProcessed} templates processed`);
 
     } catch (e) {
       console.error('Training error:', e);
@@ -276,39 +332,107 @@ export default function AIModelView() {
             <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-6">
               <TrendingUp className="text-cyan-400" size={20} />
               Model Performance
+              {metrics?.modelsLoaded && (
+                <span className="ml-auto flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">
+                  <CheckCircle size={12} />
+                  Models Loaded
+                </span>
+              )}
             </h2>
 
             {metrics && (
               <div className="space-y-4">
-                {[
-                  { label: 'Accuracy', value: metrics.accuracy, color: 'from-emerald-500 to-teal-500' },
-                  { label: 'Precision', value: metrics.precision, color: 'from-blue-500 to-cyan-500' },
-                  { label: 'Recall', value: metrics.recall, color: 'from-purple-500 to-fuchsia-500' },
-                  { label: 'F1 Score', value: metrics.f1Score, color: 'from-amber-500 to-orange-500' },
-                ].map((metric) => (
-                  <div key={metric.label}>
+                {/* Classifier Metrics */}
+                <div className="space-y-3">
+                  <div className="text-xs text-slate-500 uppercase tracking-wider font-medium">Log Classifier</div>
+                  {[
+                    { label: 'Severity Classification', value: metrics.severityAccuracy, color: 'from-emerald-500 to-teal-500', icon: '📊' },
+                    { label: 'Domain Classification', value: metrics.domainAccuracy, color: 'from-blue-500 to-cyan-500', icon: '🏷️' },
+                  ].map((metric) => (
+                    <div key={metric.label}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                          <span>{metric.icon}</span>
+                          {metric.label}
+                        </span>
+                        <span className={`font-bold ${metric.value >= 90 ? 'text-emerald-400' : metric.value >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {metric.value.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full bg-gradient-to-r ${metric.color} transition-all duration-1000`}
+                          style={{ width: `${Math.min(100, metric.value)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Security Detector */}
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs text-slate-500 uppercase tracking-wider font-medium">Security Detector</div>
+                  <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-slate-400">{metric.label}</span>
-                      <span className="text-white font-medium">{metric.value.toFixed(1)}%</span>
+                      <span className="text-slate-400 flex items-center gap-1.5">
+                        <span>🔒</span>
+                        Threat Detection
+                      </span>
+                      <span className={`font-bold ${metrics.securityAccuracy >= 90 ? 'text-emerald-400' : metrics.securityAccuracy >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {metrics.securityAccuracy.toFixed(2)}%
+                      </span>
                     </div>
                     <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full bg-gradient-to-r ${metric.color} transition-all duration-1000`}
-                        style={{ width: `${metric.value}%` }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 transition-all duration-1000"
+                        style={{ width: `${Math.min(100, metrics.securityAccuracy)}%` }}
                       />
                     </div>
                   </div>
-                ))}
+                </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-700">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Avg. Embedding Time</span>
-                    <span className="text-white font-medium">{metrics.avgEmbeddingTime.toFixed(0)}ms</span>
+                {/* Anomaly Detector */}
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs text-slate-500 uppercase tracking-wider font-medium">Anomaly Detector</div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-400 flex items-center gap-1.5">
+                        <span>⚠️</span>
+                        Detection Threshold
+                      </span>
+                      <span className="text-amber-400 font-bold">
+                        {metrics.anomalyThreshold.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-1000"
+                        style={{ width: `${Math.min(100, metrics.anomalyThreshold)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-sm mt-2">
-                    <span className="text-slate-400">Template Coverage</span>
+                </div>
+
+                {/* Additional Info */}
+                <div className="mt-6 pt-4 border-t border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Embedding Coverage</span>
                     <span className="text-emerald-400 font-medium">{metrics.coveragePercent.toFixed(1)}%</span>
                   </div>
+                  {metrics.samplesTrained && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Training Samples</span>
+                      <span className="text-white font-medium">{metrics.samplesTrained.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {metrics.lastTrained && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Last Trained</span>
+                      <span className="text-slate-300 font-medium">
+                        {new Date(metrics.lastTrained).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
