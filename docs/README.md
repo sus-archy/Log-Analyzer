@@ -7,7 +7,7 @@ Welcome to the LogMind AI documentation.
 | Document | Description |
 |----------|-------------|
 | [Project Documentation](PROJECT_DOCUMENTATION.md) | Full Project Documentation |
-| [Code Documentation](DOCUMENTATION.md) | REST API reference |
+| [Code Documentation](Code_Dodumentation.md) | REST API reference |
 | [ML Documentation](ML_DOCUMENTATION.md) | Machine learning module guide |
 | [Architecture](ARCHITECTURE.md) | System design and architecture |
 
