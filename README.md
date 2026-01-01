@@ -16,10 +16,12 @@ A local-first log observability platform with AI-powered insights.
 
 📚 See the [docs/](docs/) folder for detailed documentation:
 
-- [Project Structure](docs/PROJECT_STRUCTURE.md) - Codebase organization
-- [API Documentation](docs/DOCUMENTATION.md) - REST API reference
-- [ML Documentation](docs/ML_DOCUMENTATION.md) - Machine learning guide
-- [Architecture](docs/ARCHITECTURE.md) - System design
+| Document | Description |
+|----------|-------------|
+| [Project Documentation](PROJECT_DOCUMENTATION.md) | Full Project Documentation |
+| [Code Documentation](Code_Dodumentation.md) | Code Explanation |
+| [ML Documentation](ML_DOCUMENTATION.md) | Machine learning module guide |
+| [Architecture](ARCHITECTURE.md) | System design and architecture |
 
 ## Architecture
 
