@@ -245,9 +245,6 @@ Open the **Chat** tab and ask questions like:
 - "What errors occurred in the last hour?"
 - "Why are there connection failures?"
 - "Summarize the issues for this service"
+- "Show me logs related to DDoS attack"
 
 The AI provides grounded answers with citations to specific templates and logs.
-
-## License
-
-MIT
